@@ -1,5 +1,8 @@
 module llh
 
+using LinearAlgebra  #: cholesky, logdet, diag, inv, triu
+using AxUtil
+
 export gmm_llh, gmm_llh_invLT
 
 function log_gauss_llh(X, mu, sigma; bypass=false)
