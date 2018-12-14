@@ -2,6 +2,7 @@ module llh
 
 using LinearAlgebra  #: cholesky, logdet, diag, inv, triu
 using AxUtil
+using ..Misc
 
 export gmm_llh, gmm_llh_invLT
 
@@ -65,7 +66,7 @@ end
 
 
 function responsibilities(X, mus::Matrix{T}, sigmas::Array{T, 3}, pis::Array{T, 1}) where T <: AbstractFloat 
-    softmax(reduce(vcat, [log_gauss_llh(X, d.mus[j,:], d.sigmas[:,:,j]) .+ log(d.pis[j]) for j in 1:size(mus, 1)]'))
+    softmax(reduce(vcat, [log_gauss_llh(X, mus[j,:], sigmas[:,:,j]) .+ log(pis[j]) for j in 1:size(mus, 1)]'))
 end
 
 end

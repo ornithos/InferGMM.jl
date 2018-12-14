@@ -23,8 +23,8 @@ uuid = "7d9fca2a-8960-54d3-9f78-7d1dccf2cb97"
 version = "0.3.0"
 
 [[AxUtil]]
-deps = ["BSON", "DSP", "Distributions", "Flux", "Formatting", "LinearAlgebra", "NNlib", "Random", "StatsBase", "StatsFuns", "Test"]
-git-tree-sha1 = "7f807cd446ec4a6716b632afa99757122274bbfb"
+deps = ["BSON", "DSP", "Distributions", "Flux", "Formatting", "LinearAlgebra", "Logging", "NNlib", "Random", "StatsBase", "StatsFuns", "Test"]
+git-tree-sha1 = "9670e9efd29b0c6b73c6824e358e1f916b15da7b"
 repo-rev = "master"
 repo-url = "https://github.com/ornithos/AxUtil.jl"
 uuid = "739e4dca-d06b-11e8-2625-cffd46b96d05"

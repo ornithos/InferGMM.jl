@@ -1,7 +1,7 @@
 using Distributions
 import Distributions: partype, logpdf
 using Formatting: format
-
+using ..Misc
 
 export GMM, importance_sample, logpdf
 
