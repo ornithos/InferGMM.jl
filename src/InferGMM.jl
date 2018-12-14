@@ -10,7 +10,7 @@ using NNlib: softmax
 using AxUtil # Math, array, Flux extensions
 using BSON, Logging, ProgressMeter
 
-include("Misc.jl")
+include("misc.jl")
 using .Misc
 
 include("llh.jl")
