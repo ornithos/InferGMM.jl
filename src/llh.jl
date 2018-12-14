@@ -61,6 +61,8 @@ function gmm_llh_invLT(X, pis, mus, invLTs::Array{T,1}; disp=false, thrsh_comp=0
 end
 
 
-responsibilities(X, d::GMM) = softmax(reduce(vcat, [log_gauss_llh(X, d.mus[j,:], d.sigmas[:,:,j]) .+ log(d.pis[j]) for j in 1:ncomponents(d)]'))
+function responsibilities(X, mus::Matrix{T}, sigmas::Array{T, 3}, pis::Array{T, 1}) where T <: AbstractFloat 
+    softmax(reduce(vcat, [log_gauss_llh(X, d.mus[j,:], d.sigmas[:,:,j]) .+ log(d.pis[j]) for j in 1:size(mus, 1)]'))
+end
 
 end

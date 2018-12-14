@@ -1,5 +1,3 @@
-module gmm
-
 using Distributions
 import Distributions: partype, logpdf
 using Formatting: format
@@ -137,6 +135,8 @@ function logpdf(d::GMM, X::Matrix{T}; thrsh_comp=0.005) where T <: AbstractFloat
     return gmm_llh(X, d.pis, d.mus, d.sigmas; thrsh_comp=thrsh_comp)
 end
 
+responsibilities(X, d::GMM) = llh.responsibilities(X, d.mus, d.sigmas, d.pis)
+
 
 # Importance sampling and ESS
 function importance_sample(d::GMM, n::Int, log_f::Function; shuffle=false)
@@ -257,7 +257,3 @@ function gmm_fit(X, weights, pi_prior, mu_prior, cov_prior; max_iter=100, tol=1e
     return out
 end
 
-
-
-
-end  # module
