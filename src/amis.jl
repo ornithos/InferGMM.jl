@@ -1,7 +1,7 @@
 module amis
 
 using Formatting: format
-using InferGMM: GMM, gmm_fit, importance_sample, update, rmcomponents
+using InferGMM: GMM, gmm_fit, importance_sample, update, rmcomponents, add_noise_comp
 using AxUtil.MCDiagnostic: is_eff_ss
 using AxUtil: dropdim1, dropdim2
 using Distributions: logpdf, ncomponents, partype
@@ -69,7 +69,8 @@ function adamult(dGMM::GMM, log_f::Function; max_iter=10, nsmps=1000,
         # => When fitting the new density, start from the *original* density
         # so we don't lose any components due to _surprises_ in some iterations.
         gmm_iter = max(mle_max_iter - 2*j,5)
-        cQ = gmm_fit(X[:, 1:j*nsmps], W, Qs[1]; max_iter=gmm_iter, tol=1e-3, rm_inactive=true)
+        Qbase = add_noise_comp(cQ; n = ncomponents(Qs[1]) - ncomponents(cQ))
+        cQ = gmm_fit(X[:, 1:j*nsmps], W, Qbase; max_iter=gmm_iter, tol=1e-3, rm_inactive=true)
         cQ = is_tilt(cQ, IS_tilt)  # exponential tilt if reqd
     end
 
