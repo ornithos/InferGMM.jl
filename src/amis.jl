@@ -66,8 +66,10 @@ function adamult(dGMM::GMM, log_f::Function; max_iter=10, nsmps=1000,
         @logmsg DETAILED format("          | +++ AMIS ({:3d}/{:3d}) NOT TERMINATED, " *
                       "ncls={:4d}, ESS={:.2f}", j, max_iter, ncomponents(cQ), ess)
 
+        # => When fitting the new density, start from the *original* density
+        # so we don't lose any components due to _surprises_ in some iterations.
         gmm_iter = max(mle_max_iter - 2*j,5)
-        cQ = gmm_fit(X[:, 1:j*nsmps], W, cQ; max_iter=gmm_iter, tol=1e-3, rm_inactive=true)
+        cQ = gmm_fit(X[:, 1:j*nsmps], W, Qs[1]; max_iter=gmm_iter, tol=1e-3, rm_inactive=true)
         cQ = is_tilt(cQ, IS_tilt)  # exponential tilt if reqd
     end
 
