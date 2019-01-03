@@ -18,5 +18,6 @@ include("llh.jl")
 include("gmm.jl")
 
 include("variational.jl")
+include("amis.jl")
 
 end
