@@ -22,6 +22,7 @@ function adamult(dGMM::GMM, log_f::Function; max_iter=10, nsmps=1000,
                     IS_tilt=1.0, mle_max_iter=30, final_smps=1000)
 
     T = partype(dGMM)
+    d = size(dGMM)
     n_total = max_iter*nsmps
     iter_fin = max_iter       # for logging: assume complete all iters (unless terminate early).
     X, U, L = Matrix{T}(undef, d, n_total), Vector{T}(undef, n_total), Vector{T}(undef, n_total)
@@ -76,7 +77,7 @@ function adamult(dGMM::GMM, log_f::Function; max_iter=10, nsmps=1000,
     @logmsg DETAILED format("          | +++ AMIS ({:3d}/{:3d}) TERMINATED, " *
                   "ncls={:4d}, ESS={:.2f}", iter_fin, max_iter, ncomponents(cQ), ess)
 
-    return cQ, S, W, ess, iter
+    return cQ, S, W, ess, iter_fin
 end
 
 
