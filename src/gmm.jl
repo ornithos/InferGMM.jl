@@ -100,7 +100,7 @@ function Base.convert(::Type{GMM}, d::MixtureModel{Multivariate,Continuous,T}) w
 end
 
 # add (>=0) noise component(s) into GMM, like Minka's classic clutter problem
-function add_noise_comp(d::GMM; n::Signed=1, std_mult::AbstractFloat=1.7, pi_eat::AbstractFloat=0.02)
+function add_noise_comp(d::GMM; n::Signed=1, std_mult::AbstractFloat=2.0, pi_eat::AbstractFloat=0.02)
     @assert n >= 0
     (n == 0) && return d
     mus, sigmas, pis = d.mus, d.sigmas, d.pis
@@ -108,7 +108,7 @@ function add_noise_comp(d::GMM; n::Signed=1, std_mult::AbstractFloat=1.7, pi_eat
     center, cstdev = mean(mus, dims=1), std(mus, dims=1)
     new_mu = randn(n, p).*cstdev .+ center
     mus = vcat(mus, new_mu)
-    sigmas = cat(sigmas, repeat(sum(sigmas, dims=3)*std_mult, 1, 1, n), dims=3)
+    sigmas = cat(sigmas, repeat(mean(sigmas, dims=3)*std_mult, 1, 1, n), dims=3)
     pis = vcat(pis .* (1-pi_eat), ones(n) * pi_eat/n)
     GMM(mus, sigmas, pis)
 end
