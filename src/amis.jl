@@ -4,7 +4,7 @@ using Formatting: format
 using InferGMM: GMM, gmm_fit, importance_sample, update, rmcomponents
 using AxUtil.MCDiagnostic: is_eff_ss
 using AxUtil: dropdim1, dropdim2
-using Distributions: logpdf, ncomponents
+using Distributions: logpdf, ncomponents, partype
 import StatsBase: sample, weights
 using StatsFuns: logaddexp
 using NNlib: softmax
@@ -21,6 +21,7 @@ const DETAILED = LogLevel(-500)
 function adamult(dGMM::GMM, log_f::Function; max_iter=10, nsmps=1000,
                     IS_tilt=1.0, mle_max_iter=30, final_smps=1000)
 
+    T = partype(dGMM)
     n_total = max_iter*nsmps
     iter_fin = max_iter       # for logging: assume complete all iters (unless terminate early).
     X, U, L = Matrix{T}(undef, d, n_total), Vector{T}(undef, n_total), Vector{T}(undef, n_total)
@@ -37,7 +38,7 @@ function adamult(dGMM::GMM, log_f::Function; max_iter=10, nsmps=1000,
         # Calculate log density of CURRENT SAMPLE under MIXTURE OF ALL IS DENSITIES
         cL = logpdf(Qs[1], cX)
         for j_prev = 2:j
-            cL = logaddexp.(cL, logpdf_(Qs[j_prev], cX))   # log(exp(Lprev) + exp(Lcur))
+            cL = logaddexp.(cL, logpdf(Qs[j_prev], cX))   # log(exp(Lprev) + exp(Lcur))
         end
 
         # Increment log density of ALL PREV SAMPLES under CURRENT MIXTURE DENSITY
