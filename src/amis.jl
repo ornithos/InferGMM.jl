@@ -1,15 +1,14 @@
-using Parameters, Formatting
-using AxUtil
+module amis
+
+using Formatting: format
 using InferGMM: GMM, gmm_fit, importance_sample, update, rmcomponents
 using AxUtil.MCDiagnostic: is_eff_ss
 using AxUtil: dropdim1, dropdim2
-using Distributions, PDMats
+using Distributions: logpdf, ncomponents
 import StatsBase: sample, weights
 using StatsFuns: logaddexp
-using LinearAlgebra
-using Flux, NNlib
-using Logging
-
+using NNlib: softmax
+using Logging: LogLevel, @logmsg
 
 const DETAILED = LogLevel(-500)
 
@@ -36,14 +35,14 @@ function adamult(dGMM::GMM, log_f::Function; max_iter=10, nsmps=1000,
         U[range_j(j, nsmps)] = log_f(cX)
 
         # Calculate log density of CURRENT SAMPLE under MIXTURE OF ALL IS DENSITIES
-        cL = logpdf_(Qs[1], cX)
+        cL = logpdf(Qs[1], cX)
         for j_prev = 2:j
             cL = logaddexp.(cL, logpdf_(Qs[j_prev], cX))   # log(exp(Lprev) + exp(Lcur))
         end
 
         # Increment log density of ALL PREV SAMPLES under CURRENT MIXTURE DENSITY
         for j_prev = 1:j-1
-            L_jprev = logpdf_(cQ, X[:, range_j(j_prev, nsmps)])
+            L_jprev = logpdf(cQ, X[:, range_j(j_prev, nsmps)])
             L[range_j(j_prev, nsmps)] = logaddexp.(L[range_j(j_prev, nsmps)], L_jprev)
         end
 
@@ -80,10 +79,13 @@ function adamult(dGMM::GMM, log_f::Function; max_iter=10, nsmps=1000,
 end
 
 
-function adamult_is(S::Matrix{T}, W::Vector{T}, dGMM::GMM, log_f::Function; max_iter=10,
+function adamult(S::Matrix{T}, W::Vector{T}, dGMM::GMM, log_f::Function; max_iter=10,
     nsmps=1000, IS_tilt=1.0, mle_max_iter=30, final_smps=1000) where T <: AbstractFloat
 
     cQ = gmm_fit(S, W, dGMM; max_iter=mle_max_iter, tol=1e-3, rm_inactive=true)
-    adamult_is(cQ, log_f; max_iter=max_iter, nsmps=nsmps,
+    adamult(cQ, log_f; max_iter=max_iter, nsmps=nsmps,
                         IS_tilt=IS_tilt, mle_max_iter=mle_max_iter, final_smps=final_smps)
+end
+
+
 end
