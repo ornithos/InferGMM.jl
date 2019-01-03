@@ -132,7 +132,11 @@ function sample_from_gmm(n, pis, mus, covs; shuffle=true)
 end
 
 function logpdf(d::GMM, X::Matrix{T}; thrsh_comp=0.005) where T <: AbstractFloat
-    return gmm_llh(X, d.pis, d.mus, d.sigmas; thrsh_comp=thrsh_comp)
+    return llh.gmm_llh(X, d.pis, d.mus, d.sigmas; thrsh_comp=thrsh_comp)
+end
+
+function logpdf(d::GMM, X::Vector{T}; thrsh_comp=0.005) where T <: AbstractFloat
+    return llh.gmm_llh(reshape(X,:,1), d.pis, d.mus, d.sigmas; thrsh_comp=thrsh_comp)
 end
 
 responsibilities(X, d::GMM) = llh.responsibilities(X, d.mus, d.sigmas, d.pis)
@@ -149,7 +153,7 @@ end
 function is_eff_ss_per_comp(d::GMM, S::Matrix{T}, W::Vector{T}) where T <: AbstractFloat
     k = ncomponents(d)
     out = zeros(T, k)
-    rs = softmax(reduce(vcat, map(j -> log_gauss_llh(S, d.mus[j,:], d.sigmas[:,:,j], 1:k)')))
+    rs = softmax(reduce(vcat, map(j -> llh.log_gauss_llh(S, d.mus[j,:], d.sigmas[:,:,j], 1:k)')))
     out = map(j->is_eff_ss(W[rand(Categorical(rs[j,:]), length(W))]), 1:k)
     return out
 end
@@ -256,4 +260,3 @@ function gmm_fit(X, weights, pi_prior, mu_prior, cov_prior; max_iter=100, tol=1e
 
     return out
 end
-
