@@ -225,7 +225,7 @@ function gmm_fit(X, weights, pi_prior, mu_prior, cov_prior; max_iter=100, tol=1e
         # E-step
         rs = reduce(vcat, map(j -> llh.log_gauss_llh(X, mus[j,:], sigmas[:,:,j], bypass=inactive_ixs[j]), 1:k)')
         try
-            rs .+= log.(pis)[:] + log.(pi_prior)[:]
+            rs .+= log.(pis)[:] # => DO NOT add log prior here
             catch e
             @warn "(gmm) rs and (log) pis are not conformable. The respective values are:"
             display(rs)
