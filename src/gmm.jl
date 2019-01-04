@@ -83,13 +83,6 @@ end
 
 
 # Modify GMM 'objects'
-function rmcomponents(d::GMM, ixs::Vector{T}) where T <: Signed
-    bad_ixs = (sum(Flux.onehotbatch(Tuple(ixs), 1:ncomponents(d)), dims=2) .> 0)  |> dropdim2
-    rmcomponents(d, bad_ixs)
-end
-rmcomponents(d::GMM, ixs::Vector{T}) where T <: Bool = rmcomponents(d, convert(BitArray, ixs))
-rmcomponents(d::GMM, ixs::BitArray{1}) = GMM{partype(d)}(d.mus[.!ixs, :], d.sigmas[:, :, .!ixs], d.pis[.!ixs]/sum(d.pis[.!ixs]))
-
 update(d::GMM; mus=nothing, sigmas=nothing, pis=nothing) = GMM(something(mus, d.mus), something(sigmas, d.sigmas), something(pis, d.pis))
 
 Base.convert(::Type{GMM}, d::MvNormal) = GMM{partype(d)}(unsqueeze(d.μ, 1), unsqueeze(Matrix(d.Σ), 3), [1.])
@@ -99,6 +92,14 @@ function Base.convert(::Type{GMM}, d::MixtureModel{Multivariate,Continuous,T}) w
                cat([Matrix(d.components[j].Σ) for j in 1:ncomponents(d)]..., dims=3), d.prior.p)
 end
 
+# remove components
+function rmcomponents(d::GMM, ixs::Vector{T}) where T <: Signed
+    bad_ixs = (sum(Flux.onehotbatch(Tuple(ixs), 1:ncomponents(d)), dims=2) .> 0)  |> dropdim2
+    rmcomponents(d, bad_ixs)
+end
+rmcomponents(d::GMM, ixs::Vector{T}) where T <: Bool = rmcomponents(d, convert(BitArray, ixs))
+rmcomponents(d::GMM, ixs::BitArray{1}) = GMM{partype(d)}(d.mus[.!ixs, :], d.sigmas[:, :, .!ixs], d.pis[.!ixs]/sum(d.pis[.!ixs]))
+
 # add (>=0) noise component(s) into GMM, like Minka's classic clutter problem
 function add_noise_comp(d::GMM; n::Signed=1, std_mult::AbstractFloat=2.0, pi_eat::AbstractFloat=0.02)
     @assert n >= 0
@@ -106,13 +107,20 @@ function add_noise_comp(d::GMM; n::Signed=1, std_mult::AbstractFloat=2.0, pi_eat
     mus, sigmas, pis = d.mus, d.sigmas, d.pis
     p = size(d)
     center, cstdev = mean(mus, dims=1), std(mus, dims=1)
-    new_mu = randn(n, p).*cstdev .+ center
+    new_mu = randn(n, p).*cstdev*0.2 .+ center
     mus = vcat(mus, new_mu)
     sigmas = cat(sigmas, repeat(mean(sigmas, dims=3)*std_mult, 1, 1, n), dims=3)
     pis = vcat(pis .* (1-pi_eat), ones(n) * pi_eat/n)
     GMM(mus, sigmas, pis)
 end
 
+# initialise new component(s) into GMM, by choosing existing point
+function addcomponents(d::GMM; mus::Array{T,2}, sigmas::Array{T,3}, pis::Array{T, 1}) where T <: Number
+    ∑π = sum(pis)
+    @assert (0 < ∑π < 1) "sum(π) ∉ (0,1): π here is the target proportions: they must be non-zero and leave space for existing components."
+    cpis = d.pis * (1-∑π)
+    GMM(vcat(d.mus, mus), cat(d.sigmas, sigmas, dims=3), vcat(cpis, pis))
+end
 
 # GMM properties
 partype(x::GMM{T}) where T <: AbstractFloat = T
