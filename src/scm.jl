@@ -94,8 +94,54 @@ end
 
 
 
-# DO SIMILAR FOR PRECISION MATRIX.
+# DO SIMILAR FOR PRECISION MATRIX. CANNOT USE NUMERICAL GRAD AS NEED TO REMAIN
+# ON STIEFEL MANIFOLD => USE AD INSTEAD.
+using Flux.Tracker: @grad
 
+LinearAlgebra.logdet(X::TrackedMatrix) = Tracker.track(logdet, X)
+
+@grad function logdet(X)
+  return logdet(X.data), Δ -> (inv(X)' * Δ,)
+end
+
+function flux_log_gauss_llh_prec(X, mu, prec)
+    d = size(X,1)
+    exponent = -0.5*sum((X .- mu).*(prec*(X .- mu)), dims=1)[:]
+    lognormconst = -d*log(2*pi)/2 +0.5*logdet(prec)  #.-0.5*(-2*sum(log.(diag(invLT))))
+    return exponent .+ lognormconst
+end
+
+
+function flux_responsibilities(X, mus::AbstractArray{T,2}, sigmas::AbstractArray{T, 3}, pis::AbstractArray{T, 1}) where T <: AbstractFloat
+    softmax(reduce(vcat, [flux_log_gauss_llh_prec(X, mus[j,:], inv(sigmas[:,:,j])) .+ log(pis[j]) for j in 1:size(mus, 1)]'))
+end
+
+flux_responsibilities(X, d::GMM) = flux_responsibilities(X, d.mus, d.sigmas, d.pis)
+
+function flux_responsibilities_prec(X, mus::AbstractArray{T,2}, precs::AbstractArray{T, 3}, pis::AbstractArray{T, 1}) where T <: AbstractFloat
+    softmax(reduce(vcat, [flux_log_gauss_llh_prec(X, mus[j,:], precs[:,:,j]) .+ log(pis[j]) for j in 1:size(mus, 1)]'))
+end
+
+function obj_scm_prec(Λ, x, u)
+    @assert size(x) == size(u)
+    k = size(Λ, 3)
+    Σs = [inv(Tracker.data(Λ[:,:,j])) for j in 1:k]
+    q = GMM(_mus, cat(Σs..., dims=3), ones(3)/3)
+
+#     r = responsibilities(x, q)
+    r = flux_responsibilities_prec(x, q.mus, Λ, q.pis)
+    score = [Λ[:,:,j] * ( r[j,:]' .* (_mus[j,:] .- x)) for j in 1:k]
+    score = sum_of_arrays_safe(score)  # sums over j (components)
+    Δ = score - u
+    return 0.5*sum(Δ .* Δ)
+end
+
+
+_Λ = Flux.param(cat([inv(Tracker.data(_Σs)[:,:,j]) for j in 1:3]..., dims=3));
+_Λ.grad .= 0.
+obj = obj_scm_prec(_Λ, _x*0.5, _u[:,1:size(_x,2)])
+Tracker.back!(obj)
+_Λ.grad
 
 
 # ADD FINAL STEPS FOR PRECISION MATRIX --> L AND exp(D).
@@ -116,3 +162,24 @@ end
 
 
 # PLACE SCORE MATCHING WITHIN IMPORTANCE SAMPLING SCHEME... SEE HOW IT WORKS.
+
+
+
+
+# TIMEROUTPUTS THE DIFFERENT PARTS OF THE FUNCTION(S).
+# CAN
+#    * MOVE TO A x'Ae APPROACH IN THE MU DERIVATIVE AS USED IN THE PRECISION
+#      WHICH PERFORMS THE MATMULS IN A DIFFERENT ORDER REQING MORE MEMORY
+#    * PUSH THEM ALL INTO THE SAME FUNCTION, AVOIDING NEED TO CALC THE INVERSE
+#      AND GMM SCORE FUNCTIONS AND RESPONSIBILITIES IN EACH.
+#    * ???
+
+
+
+
+# MAY WANT TO COMBINE SCORE MATCHING OBJECTIVE WITH REVERSE KL / MLE IF SCM
+# ENDS UP BEING TOO RISK AVERSE (LIKE VARIATIONAL) OR IS BAD AT OPTIMISING AT END.
+
+
+
+# WRITE UP MATH.
