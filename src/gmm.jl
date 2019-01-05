@@ -67,13 +67,13 @@ export GMM, importance_sample, logpdf
 
 # Definition / Constructor
 struct GMM{T}
-    mus::Array{T,2}      # k * d
-    sigmas::Array{T,3}   # d * d * k
-    pis::Array{T, 1}     # k
+    mus::AbstractArray{T,2}      # k * d
+    sigmas::AbstractArray{T,3}   # d * d * k
+    pis::AbstractArray{T, 1}     # k
     GMM{T}(mus, sigmas, pis) where T <: Number = begin; x = new(mus, sigmas, pis); isvalidGMM(x); x; end
 end
 
-GMM(mus::Array{T,2}, sigmas::Array{T,3}, pis::Array{T, 1}) where T <: Number = GMM{T}(mus, sigmas, pis)
+GMM(mus::AbstractArray{T,2}, sigmas::AbstractArray{T,3}, pis::AbstractArray{T, 1}) where T <: Number = GMM{T}(mus, sigmas, pis)
 
 function isvalidGMM(x::GMM)
     @assert (x isa GMM{T} where T <: AbstractFloat) "type must be <: AbstractFloat"
@@ -115,7 +115,7 @@ function add_noise_comp(d::GMM; n::Signed=1, std_mult::AbstractFloat=2.0, pi_eat
 end
 
 # initialise new component(s) into GMM, by choosing existing point
-function addcomponents(d::GMM; mus::Array{T,2}, sigmas::Array{T,3}, pis::Array{T, 1}) where T <: Number
+function addcomponents(d::GMM; mus::AbstractArray{T,2}, sigmas::AbstractArray{T,3}, pis::AbstractArray{T, 1}) where T <: Number
     ∑π = sum(pis)
     @assert (0 < ∑π < 1) "sum(π) ∉ (0,1): π here is the target proportions: they must be non-zero and leave space for existing components."
     cpis = d.pis * (1-∑π)
