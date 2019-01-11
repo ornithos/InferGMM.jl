@@ -1,3 +1,7 @@
+using AxUtil.Flux: make_lt, make_lt_strict, diag0, unmake_lt_strict
+using AxUtil.Math: unmake_lt_strict
+
+
 function _sum_of_arrays!(x1::Array, x::Vector)
     for j in 2:length(x); x1 .+= x[j]; end
     return x1
@@ -145,13 +149,82 @@ _Λ.grad
 
 
 # ADD FINAL STEPS FOR PRECISION MATRIX --> L AND exp(D).
+@inline function build_mat(x_lt, x_diag, d::Int)
+    make_lt_strict(x_lt, d) + diag0(exp.(x_diag))
+end
+
+# (kind of a repeat of above, but the below functions are written in terms of this.)
+function obj_scm_deriv_prec(Λ, x, u)
+    @assert size(u) == size(x)
+    k = size(Λ, 3)
+    Σs = [inv(Tracker.data(Λ)[:,:,j]) for j in 1:k]
+    q = GMM(_mus, cat(Σs..., dims=3), ones(3)/3)
+
+    r = responsibilities(x, q)
+    score = [Λ[:,:,j] * ( r[j,:]' .* (_mus[j,:] .- x)) for j in 1:k]
+    sum_score = sum_of_arrays(score)
+    Δ = sum_score - u
+
+    ∇ = Vector{Any}(undef, k)
+
+    ϵ = [Λ[:,:,j] * Δ for j in 1:k]    # error signal transformed by precision_j
+    D = [x .- _mus[j,:] for j in 1:k]  # raw distance from mean_j
+    d = [sum(D[j] .* ϵ[j], dims=1)[:] for j in 1:k]   # distance (raw dist --> error signal) wrt norm prec_j
+    ω = [r[j,:] .* d[j] for j in 1:k]  # responsibility weighted distance
+    ω_all = sum_of_arrays(ω)
+    ξ = [r[j,:] .* ω_all for j in 1:k] # responsibility weighted sum of resp. wgt distances.
+
+    for s in 1:k
+        term1 = 0.5*(sum(ξ[s]) - sum(ω[s]))*Σs[s]
+        term2 = -0.5*((ξ[s] - ω[s])'.*D[s])*D[s]'
+        term3 = -Δ*(r[s,:]' .* D[s])'
+        ∇[s] = term1 + term2 + term3
+    end
+
+    return ∇
+end
+
+function obj_scm_deriv_L(L, x, u)
+    k = length(L)
+    Λ = [Tracker.data(L[j]'L[j]) for j in 1:k]
+    ∇prec = obj_scm_deriv_prec(cat(Λ..., dims=3), x, u)
+    return [L[j]*(∇prec[j] + ∇prec[j]') for j in 1:k]
+end
+
+function obj_scm_deriv_L_LD(Llt_vecs, Lds, x, u)
+    n_d = length(Lds[1])
+    Ls = [build_mat(L, d, n_d) for (L, d) in zip(Llt_vecs, Lds)]
+    ∇ = obj_scm_deriv_L(Ls, x, u)
+    [unmake_lt_strict(L, n_d) for L in ∇], [diag(L).*exp.(d) for (L,d) in zip(∇, Lds)]
+end
 
 
+_Ls = [inv(Matrix(cholesky(inv(_Λ.data[:,:,j])).L)) for j in 1:3]
+_LsLT = [param(unmake_lt_strict(L, 2)) for L in _Ls]
+_LsD = [param(log.(diag(L))) for L in _Ls]
+_LsPar = [build_mat(L, D, 2) for (L,D) in zip(_LsLT, _LsD)]
 
+_tmpΛ = [x'*x for x in _LsPar]
+obj = obj_scm_prec(cat(_tmpΛ..., dims=3), _x*0.5, _u[:,1:size(_x,2)])
+Tracker.back!(obj)
+display([x.grad for x in _LsLT])
+display([x.grad for x in _LsD])
+
+∇_LLT, ∇_LLD = obj_scm_deriv_LD([unmake_lt_strict(L, 2) for L in _Ls], [log.(diag(L)) for L in _Ls], _x*0.5, _u[:,1:size(_x,2)])
+display(∇_LLT)
+display(∇_LLD)
 
 # TEST ON ACTUAL FUNCTION.
 
 
+
+
+
+# IDEALLY PUT Ls INTO THE FUNCTION RATHER THAN CONSTRUCTING PRECISION.
+# ALSO SHOULD REALLY AVOID INVERTING SIGMA, OR INVERTING ANYTHING FOR THAT MATTER.
+# WE SHOULD EXPECT TO GET COVARIANCES WITH HIGH COND NUMBER BY CONSTRUCTION.
+# WE MUST THEREFORE BE ROBUST AND USE rdiv AND ldiv INSTEAD. NEED TO REVISIT
+# ALL THE CODE IN ORDER TO PUT THIS IN.
 
 
 # CONSIDER MAKING SCORE MATCHING UNWEIGHTED --> CAN ALWAYS RESAMPLE => NO POINT
