@@ -18,6 +18,7 @@ using .Misc
 
 include("llh.jl")
 include("gmm.jl")
+using .gmm
 
 include("variational.jl")
 include("amis.jl")
