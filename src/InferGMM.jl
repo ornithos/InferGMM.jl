@@ -21,6 +21,11 @@ include("gmm.jl")
 using .gmm
 
 include("variational.jl")
+using .variational
+
+include("scm.jl")
+using .scm
+
 include("amis.jl")
 
 
