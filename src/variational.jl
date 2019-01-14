@@ -4,6 +4,7 @@ using ..llh
 using ..gmm: GMM
 using AxUtil, Flux, ProgressMeter, Distributions, LinearAlgebra
 
+export optimise_components_bbb, optimise_components_bbb_revkl
 
 # llh_unnorm(Scentered, Linv) = let white = Linv * Scentered; -0.5*sum(white .* white, dims=1); end
 

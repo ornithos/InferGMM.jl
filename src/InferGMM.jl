@@ -11,6 +11,8 @@ using AxUtil # Math, array, Flux extensions
 using BSON, Logging, ProgressMeter
 using Pkg
 
+export GMM, importance_sample, responsibilities, importance_sample, gmm_fit
+
 include("misc.jl")
 using .Misc
 
@@ -21,5 +23,4 @@ include("variational.jl")
 include("amis.jl")
 
 
-export GMM, importance_sample, responsibilities, importance_sample, gmm_fit
 end
