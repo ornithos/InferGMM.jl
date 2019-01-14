@@ -20,4 +20,6 @@ include("gmm.jl")
 include("variational.jl")
 include("amis.jl")
 
+
+export GMM, importance_sample, responsibilities, importance_sample, gmm_fit
 end

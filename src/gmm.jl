@@ -1,9 +1,11 @@
+module gmm
+
 using Distributions
 import Distributions: partype, logpdf
 using Formatting: format
 using ..Misc
 
-export GMM, importance_sample, logpdf
+export GMM, update, rmcomponents, add_noise_comp, addcomponents, responsibilities, importance_sample, is_eff_ss_per_comp, gmm_fit
 
 # @benchmark softmax(reduce(vcat, map(j -> AxUtil.gmm.log_gauss_llh(S, dGMM.mus[j,:], dGMM.sigmas[:,:,j], bypass=inactive_ixs[j]), 1:15)'))
 # BenchmarkTools.Trial:
@@ -282,3 +284,7 @@ function gmm_fit(X, weights, pi_prior, mu_prior, cov_prior; max_iter=100, tol=1e
 
     return out
 end
+
+
+
+end # module

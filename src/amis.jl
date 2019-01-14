@@ -1,7 +1,7 @@
 module amis
 
 using Formatting: format
-using InferGMM: GMM, gmm_fit, importance_sample, update, rmcomponents, add_noise_comp
+using ..gmm: GMM, gmm_fit, importance_sample, update, rmcomponents, add_noise_comp
 using AxUtil.MCDiagnostic: is_eff_ss
 using AxUtil: dropdim1, dropdim2
 using Distributions: logpdf, ncomponents, partype

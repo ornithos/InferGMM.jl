@@ -1,4 +1,9 @@
+module variational
+
 using ..llh
+using ..gmm: GMM
+using AxUtil, Flux, ProgressMeter, Distributions, LinearAlgebra
+
 
 # llh_unnorm(Scentered, Linv) = let white = Linv * Scentered; -0.5*sum(white .* white, dims=1); end
 
@@ -374,3 +379,8 @@ function optimise_components_bbb_revkl(d::GMM, log_f::Function, epochs::Int, bat
 
     return cgmm, history
 end
+
+
+
+
+end # module
