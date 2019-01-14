@@ -216,6 +216,7 @@ end
 
 function obj_scm_deriv_all(X, mus, LsLT, LsD, Δ, r)
 
+    k, n_d = length(LsD), length(LsD[1])
     Ls = build_Ls(LsLT, LsD, n_d)
     Λ = [Ls[j]'Ls[j] for j in 1:k]
 
