@@ -108,11 +108,11 @@ function _score_match_objective_and_grad(X::AbstractMatrix, mus::AbstractMatrix,
     return val, ∇mu, ∇LT, ∇D
 end
 
-@with_kw mutable struct scm_opt
-    M::Int64 = 5
-    epochs::Int64 = 200
-    tol::Float = 1e-3
-end
+# @with_kw mutable struct scm_opt
+#     M::Int64 = 5
+#     epochs::Int64 = 200
+#     tol::Float64 = 1e-3
+# end
 
 
 # ────────────────────────────────────────────────────────────────────
