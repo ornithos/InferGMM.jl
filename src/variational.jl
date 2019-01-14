@@ -1,3 +1,4 @@
+using ..llh
 
 # llh_unnorm(Scentered, Linv) = let white = Linv * Scentered; -0.5*sum(white .* white, dims=1); end
 
@@ -326,7 +327,7 @@ function optimise_components_bbb_revkl(d::GMM, log_f::Function, epochs::Int, bat
             # *IMPORTANT*: we don't want to take gradient of parameters in q: this is
             # similar to EM where the expectation is wrt a *previous* version of the same q.
             x = mus[c,:] .+ inv(invLT[c])*randn(n_d, batch_size_per_cls)
-            w = log_f(x) - AxUtil.gmm.gmm_llh_invLT(x, ones(k)/k, mus, invLT) # log imp_wgt
+            w = log_f(x) - llh.gmm_llh_invLT(x, ones(k)/k, mus, invLT) # log imp_wgt
             NNlib.softmax!(w)  # exp(w)/sum(exp(w)) => self normalised imp weights
 
             # Calculate objective (approx. integral of log GMM density)
