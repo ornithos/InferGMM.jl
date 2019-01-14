@@ -12,6 +12,10 @@
 end
 @inline _llh_unnorm(Scentered, Linv) = -0.5*sum(x->x*x, Linv * Scentered, dims=1)
 
+# => See AxUtil.Arr
+@inline zero_arrays!(x::Array{T, 1}) where T <: AbstractArray = for y in x; zero_arrays!(y); end
+@inline zero_arrays!(x::Array{T, 1}) where T <: Real = (x .= 0.);
+@inline zero_arrays!(x::Array{T, 2}) where T <: Real = (x .= 0.);
 
 #=======================================================================================
                   Variational Inference (Forward KL) fit of GMM
@@ -311,7 +315,7 @@ function optimise_components_bbb_revkl(d::GMM, log_f::Function, epochs::Int, bat
             # zero gradient (rather than reallocate): I THINK THIS IS UNNECESSARY.
             # nesting all within one call seems to take a performance hit:
             #  --> perhaps 3 level function recursion cannot be inlined?
-            zero_arrays!(∇_mu); zero_arrays!(∇_invdiag); zero_arrays!(∇_invlt);
+            # zero_arrays!(∇_mu); zero_arrays!(∇_invdiag); zero_arrays!(∇_invlt);
 
             # useful quantities reqd by objective and gradient.
             normcnst = [sum(invDiagval[r]) for r in 1:k] #.-n_d/2*log(2π)
@@ -369,4 +373,3 @@ function optimise_components_bbb_revkl(d::GMM, log_f::Function, epochs::Int, bat
 
     return cgmm, history
 end
-
