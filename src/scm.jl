@@ -3,7 +3,7 @@ module scm
 using ..gmm
 using LinearAlgebra
 using Parameters, Formatting
-using Distributions: ncomponents
+using Distributions: ncomponents, Normal
 using Flux
 using Flux: Tracker
 using Sobol
