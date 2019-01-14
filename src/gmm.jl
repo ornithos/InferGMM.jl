@@ -5,6 +5,10 @@ import Distributions: partype, logpdf
 using Formatting: format
 using ..Misc
 
+using Random # randperm, MersenneTwister
+using LinearAlgebra
+using NNlib: softmax
+
 export GMM, update, rmcomponents, add_noise_comp, addcomponents, responsibilities, importance_sample, is_eff_ss_per_comp, gmm_fit
 
 # @benchmark softmax(reduce(vcat, map(j -> AxUtil.gmm.log_gauss_llh(S, dGMM.mus[j,:], dGMM.sigmas[:,:,j], bypass=inactive_ixs[j]), 1:15)'))
