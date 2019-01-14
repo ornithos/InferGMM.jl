@@ -80,7 +80,7 @@ end
 
 function _internal_score_match_objective(X::AbstractMatrix, mus::AbstractMatrix, LsLT::AbstractVector,
                                 LsD::AbstractVector, ∇log_p::AbstractArray)
-    k, n_d = ncomponents(q), size(q)
+    k, n_d = length(LsD), length(LsD[1])
     @assert (size(X) == size(∇log_p)) "∇log_p function returns a different size to input"
 
     Ls = build_Ls(LsLT, LsD, n_d)
