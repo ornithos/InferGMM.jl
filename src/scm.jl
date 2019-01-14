@@ -1,10 +1,13 @@
 module scm
 
+using ..gmm
 using LinearAlgebra
 using Parameters, Formatting
+using Distributions: ncomponents
+using Flux
+using Flux: Tracker
 using Sobol
 using AxUtil
-using ..gmm
 using AxUtil.Flux: make_lt, make_lt_strict, diag0, unmake_lt_strict
 using AxUtil.Math: unmake_lt_strict
 
