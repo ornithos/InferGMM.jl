@@ -2,6 +2,7 @@ module scm
 
 using LinearAlgebra
 using Parameters, Formatting
+using Sobol
 using AxUtil
 using ..gmm
 using AxUtil.Flux: make_lt, make_lt_strict, diag0, unmake_lt_strict
@@ -9,6 +10,17 @@ using AxUtil.Math: unmake_lt_strict
 
 
 export score_match_gmm
+
+
+function sobol_gaussian(n, d)
+    s = SobolSeq(d)
+    p = reduce(hcat, [Sobol.next!(s) for i = 1:n])
+    ϵ = rand(d)
+    prand = [(p[j,:] .+ ϵ[j]) .% 1.0 for j in 1:d]
+    p = reduce(vcat, [quantile.(Normal(), prand[j])' for j in 1:d])
+    return p
+end
+
 
 function _sum_of_arrays!(x1::Array, x::Vector)
     for j in 2:length(x); x1 .+= x[j]; end
@@ -149,7 +161,7 @@ function score_match_gmm(q::GMM, log_p::Function, ∇log_p::Function;
             Linvs = build_Ls(LsLT, LsD, n_d)
 
             # CHECK THIS DOES THE RIGHT THING
-            ϵ = randn(n_d, Mproposal)
+            ϵ = sobol_gaussian(Mproposal, n_d) # => size n_d x Mproposal
             X = mus[comp,:] .+ Linvs[comp] \ ϵ
 
             # Importance weights and resampling
@@ -258,3 +270,6 @@ end
 
 
 # WRITE UP MATH.
+
+
+end # module
