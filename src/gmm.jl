@@ -4,6 +4,7 @@ using Distributions
 import Distributions: partype, logpdf
 using Formatting: format
 using ..Misc
+using ..llh
 
 using Random # randperm, MersenneTwister
 using LinearAlgebra

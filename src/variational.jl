@@ -2,7 +2,8 @@ module variational
 
 using ..llh
 using ..gmm: GMM
-using AxUtil, Flux, ProgressMeter, Distributions, LinearAlgebra
+using AxUtil, Flux
+using Distributions, Random, LinearAlgebra, Pkg, ProgressMeter
 
 export optimise_components_bbb, optimise_components_bbb_revkl
 
@@ -109,7 +110,7 @@ function _optimise_components_bbb(d::GMM, log_f::Function, epochs::Int, batch_si
     s_hist = zeros(Int(floor(epochs/hist_freq)))
     n_anneal = something(findlast(anneal_sched .< 1.), 0)
 
-    rng = MersenneTwister()   # to ensure common random variates for reconstruction and entropy grads.
+    rng = Random.MersenneTwister()   # to ensure common random variates for reconstruction and entropy grads.
     @showprogress 1 for ee in 1:epochs
         invLT = [build_mat(x_lt, x_dia, n_d) for (x_lt, x_dia) in zip(invLTpars, invDiagPars)]
         objective = 0.
