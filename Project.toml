@@ -3,6 +3,7 @@ uuid = "e4654f38-ff99-11e8-3938-77f3ff3d0ead"
 version = "0.1.0"
 
 [deps]
+ArgCheck = "dce04be8-c92d-5529-be00-80e4d2c0e197"
 AxUtil = "739e4dca-d06b-11e8-2625-cffd46b96d05"
 BSON = "fbb218c0-5317-5bc6-957e-2ee96dd4b1f0"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
