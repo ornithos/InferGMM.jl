@@ -3,7 +3,8 @@ module variational
 using ..llh
 using ..gmm: GMM
 using AxUtil, Flux
-using Distributions, Random, LinearAlgebra, Pkg, ProgressMeter
+using Distributions, Random, LinearAlgebra
+using Pkg, ProgressMeter, Formatting
 
 export optimise_components_bbb, optimise_components_bbb_revkl
 
@@ -30,7 +31,7 @@ end
 =======================================================================================#
 
 function optimise_components_bbb(d::GMM, log_f::Function, epochs::Int, batch_size_per_cls::Int;
-            converge_thrsh::AbstractFloat=0.999, lr::AbstractFloat=1e-3, auto_lr::Bool=true,
+            converge_thrsh::AbstractFloat=0.999, opt::Flux.ADAM=ADAM(1e-3), auto_lr::Bool=true,
             fix_mean::Bool=false, fix_cov::Bool=false,
             log_f_prev::Union{Function, Nothing}=nothing, anneal_sched::AbstractArray=[1.])
     success = 0
@@ -41,18 +42,18 @@ function optimise_components_bbb(d::GMM, log_f::Function, epochs::Int, batch_siz
 
     local history  # local scope of history for persistence outside loop.
     while success < 1
-        @debug format("(bbb) LEARNING RATE: {:.3e}", lr)
+        @debug format("(bbb) LEARNING RATE: {:.3e}", opt.eta)
         # if haszygote
         #     d, history, success = _optimise_components_bbb_zygote(d, log_f, epochs, batch_size_per_cls; converge_thrsh=converge_thrsh, lr=lr, exitifnan=(nanfail<3), auto_lr=auto_lr)
         # else
         d, history, success = _optimise_components_bbb(d, log_f, epochs, batch_size_per_cls;
                                                        converge_thrsh=converge_thrsh,
-                                                       lr=lr, exitifnan=(nanfail<3),
+                                                       opt=opt, exitifnan=(nanfail<3),
                                                        auto_lr=auto_lr,
                                                        fix_mean=fix_mean, fix_cov=fix_cov,
                                                        log_f_prev=log_f_prev, anneal_sched=anneal_sched)
         # end
-        lr *= 0.5
+        opt.eta *= 0.5
         nanfail = (success < 0) * (nanfail - success)   # increment if success = -1, o.w. reset
     end
     return d, history
@@ -79,7 +80,7 @@ function _failure_dump(ee, dGMM_orig, mupars, invLTpars, invDiagPars)
 end
 
 function _optimise_components_bbb(d::GMM, log_f::Function, epochs::Int, batch_size_per_cls::Int;
-        converge_thrsh::AbstractFloat=0.999, lr::AbstractFloat=1e-3, exitifnan::Bool=false,
+        converge_thrsh::AbstractFloat=0.999, opt::Flux.ADAM=ADAM(1e-3), exitifnan::Bool=false,
         auto_lr::Bool=true, fix_mean::Bool=false, fix_cov::Bool=false,
         log_f_prev::Union{Function, Nothing}=nothing, anneal_sched::AbstractArray=[1.])
     # @debug "(bbb) Input GMM: " dGMM=d
@@ -99,9 +100,9 @@ function _optimise_components_bbb(d::GMM, log_f::Function, epochs::Int, batch_si
     invLTpars = [Flux.param(x[tril!(trues(n_d, n_d), -1)]) for x in invLTpars]
 
     mupars = Flux.param(d.mus)
+    cpars = (mupars, invLTpars..., invDiagPars...)
     ∇mu = Matrix{partype(d)}(undef, k, n_d)
     ∇Ls = [Matrix{partype(d)}(undef, n_d, n_d) for i in 1:k]
-    opt = ADAM(Tracker.Params((mupars, invLTpars..., invDiagPars...)), lr)
 
     # Admin
     hist_freq = 5   # Sampling freq for history of objective
@@ -184,7 +185,10 @@ function _optimise_components_bbb(d::GMM, log_f::Function, epochs::Int, batch_si
             end
             # ====================================================
 
-            opt()  # Perform gradient step / zero grad.
+            # Perform gradient step / zero grad.
+            for p in cpars
+                Tracker.update!(opt, p, -Tracker.grad(p))
+            end
         end
         # Objective and convergence
         if ee % hist_freq == 0
@@ -286,7 +290,7 @@ end
 
 
 function optimise_components_bbb_revkl(d::GMM, log_f::Function, epochs::Int, batch_size_per_cls::Int;
-        converge_thrsh::AbstractFloat=0.999, lr::AbstractFloat=1e-3, exitifnan::Bool=false, auto_lr::Bool=true,
+        converge_thrsh::AbstractFloat=0.999, opt::Flux.ADAM=ADAM(1e-3), exitifnan::Bool=false, auto_lr::Bool=true,
         ixs=nothing, reference_gmm=nothing)
     n_d = size(d)
     k = ncomponents(d)
@@ -297,7 +301,7 @@ function optimise_components_bbb_revkl(d::GMM, log_f::Function, epochs::Int, bat
     invDiagPars = [Flux.param(log.(x[diagind(x)])) for x in invLTval]
     invLTPars = [Flux.param(x[tril!(trues(n_d, n_d), -1)]) for x in invLTval]
     mupars = Flux.param(copy(d.mus))
-    opt = ADAM(Tracker.Params((mupars, invLTPars..., invDiagPars...)), lr)
+    cpars = (mupars, invLTPars..., invDiagPars...)
 
     # create data views of the Flux params for use in algo
     mus = mupars.data
@@ -362,7 +366,10 @@ function optimise_components_bbb_revkl(d::GMM, log_f::Function, epochs::Int, bat
                 invDiagPars[j].grad .= ∇_invdiag[j]
             end
 
-            opt()   # take optimisation step (ADAM)
+            # Perform gradient step / zero grad.
+            for p in cpars
+                Tracker.update!(opt, p, -Tracker.grad(p))
+            end
         end
 
         # Objective and convergence

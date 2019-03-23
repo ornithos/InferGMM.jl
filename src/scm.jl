@@ -149,7 +149,7 @@ function score_match_gmm(q::GMM, log_p::Function, ∇log_p::Function;
     pLsD = [param(log.(diag(L))) for L in Linvs]
     pMus = param(q.mus)
     pars = Flux.params(pLsLT..., pLsD..., pMus)
-    optim = Flux.ADAM(pars, 1e-2)
+    optim = Flux.ADAM(1e-2)
 
     LsLT = [Tracker.data(L) for L in pLsLT]
     LsD = [Tracker.data(D) for D in pLsD]
@@ -183,7 +183,9 @@ function score_match_gmm(q::GMM, log_p::Function, ∇log_p::Function;
             pMus.grad .= ∇mu
 
             # take gradient step
-            optim()
+            for p in pars
+                Tracker.update!(optim, p, -Tracker.grad(p))
+            end
         end
         # admin: save obj value and check convergence
         history[ee] = total_obj_val

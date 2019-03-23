@@ -12,6 +12,7 @@ using NNlib: softmax
 
 export GMM, update, rmcomponents, add_noise_comp, addcomponents, responsibilities, importance_sample, is_eff_ss_per_comp, gmm_fit
 
+@inline unsqueeze(xs, dim) = reshape(xs, (size(xs)[1:dim-1]..., 1, size(xs)[dim:end]...))
 # @benchmark softmax(reduce(vcat, map(j -> AxUtil.gmm.log_gauss_llh(S, dGMM.mus[j,:], dGMM.sigmas[:,:,j], bypass=inactive_ixs[j]), 1:15)'))
 # BenchmarkTools.Trial:
 #   memory estimate:  25.60 MiB
