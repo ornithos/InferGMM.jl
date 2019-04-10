@@ -99,6 +99,7 @@ function Base.convert(::Type{GMM}, d::MixtureModel{Multivariate,Continuous,T}) w
     return GMM{partype(d)}(reduce(vcat, [d.components[j].μ' for j in 1:ncomponents(d)]),
                cat([Matrix(d.components[j].Σ) for j in 1:ncomponents(d)]..., dims=3), d.prior.p)
 end
+Base.copy(d::GMM) = GMM(copy(d.mus), copy(d.sigmas), copy(d.pis))
 
 # remove components
 function rmcomponents(d::GMM, ixs::Vector{T}) where T <: Signed

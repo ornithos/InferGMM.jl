@@ -27,7 +27,7 @@ k = 5
 gmm_init = GMM(randn(k,2), cat([AxUtil.Random.psd_matrix(2) for i in 1:k]...,dims=3)*0.2, rand(Dirichlet(ones(k)*10)));
 ```
 
-Note that (Flux)[https://github.com/FluxML/Flux.jl] is used internally for automatic differentiation.
+Note that [Flux](https://github.com/FluxML/Flux.jl) is used internally for automatic differentiation.
 
 * **Variational Inference**, that is minimizing $\text{KL}(q_\phi \| p)$. The syntax for optimising $q_\phi = $ `gmm_init` is `optimise_components_vi(d::GMM, log_f::Function, epochs::Int, opt::Flux.ADAM, batch_size_per_cls::Int)`. Note that the sampling is stratified by the number of components, and hence one specifies the number of samples to evaluate the integral (`batch_size_per_cls`) *per component*. Example:
 

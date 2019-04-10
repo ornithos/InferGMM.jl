@@ -4,9 +4,9 @@ using ..llh
 using ..gmm: GMM
 using AxUtil, Flux
 using Distributions, Random, LinearAlgebra
-using Pkg, ProgressMeter, Formatting, Parameters, ArgCheck
+using Pkg, ProgressMeter, Formatting, Parameters
 
-export optimise_components_bbb, optimise_components_bbb_revkl, optimise_components_vi, optimise_components_mco
+export optimise_components_bbb, optimise_components_bbb_revkl
 
 # llh_unnorm(Scentered, Linv) = let white = Linv * Scentered; -0.5*sum(white .* white, dims=1); end
 
@@ -27,30 +27,23 @@ end
 @inline zero_arrays!(x::Array{T, 2}) where T <: Real = (x .= 0.);
 
 
-@with_kw mutable struct bbb_opts
+@with_kw struct bbb_opts
     opt::Flux.ADAM=ADAM(1e-3)
-    vi_batch_size_per_cls::Int = 4
-    mco_batch_size_per_cls::Int = 4
-    nproposal_per_mco_smp::Int = 3
+    batch_size_per_cls::Int = 3
+    proposal_per_cls::Int = 10
     converge_thrsh::AbstractFloat=0.999
     auto_lr::Bool=true
     anneal_sched::AbstractArray=[1.]
-    fix_mean::Bool=false
-    fix_cov::Bool=false
+    fix_mean::Bool=true
+    fix_cov::Bool=true
     log_f_prev::Union{Function,Nothing}=nothing
 end
 
 #=======================================================================================
                   Variational Inference (Forward KL) fit of GMM
 =======================================================================================#
-
-function optimise_components_vi(d::GMM, log_f::Function, epochs::Int, opt::Flux.ADAM, batch_size_per_cls::Int)
-    optimise_components_bbb(d, log_f, epochs; opts=bbb_opts(opt=opt, vi_batch_size_per_cls=batch_size_per_cls))
-end
-
-function optimise_components_mco(d::GMM, log_f::Function, epochs::Int, opt::Flux.ADAM, batch_size_per_cls::Int, nproposal_per_mco_smp::Int)
-    optimise_components_bbb(d, log_f, epochs; opts=bbb_opts(opt=opt, vi_batch_size_per_cls=0,
-        mco_batch_size_per_cls=batch_size_per_cls, nproposal_per_mco_smp=nproposal_per_mco_smp))
+function optimise_components_bbb(d::GMM, log_f::Function, epochs::Int, opt::Flux.ADAM, batch_size_per_cls::Int)
+    optimise_components_bbb(d, log_f, epochs; opts=bbb_opts(opt=opt, batch_size_per_cls=batch_size_per_cls))
 end
 
 function optimise_components_bbb(d::GMM, log_f::Function, epochs::Int; opts::bbb_opts=bbb_opts())
@@ -94,37 +87,19 @@ function _failure_dump(ee, dGMM_orig, mupars, invLTpars, invDiagPars)
     display([x.grad for x in invDiagPars])
 end
 
-
-function _build_gmm(mupars::AbstractMatrix{T}, invLTstrict::AbstractArray, invDiag::AbstractArray) where T <: AbstractFloat
-    k, n_d = size(mupars)
-    Σs = [let xd=build_mat(invLTstrict[j], invDiag[j], n_d); s=inv(xd'xd); (s+s')/2; end for j in 1:k]
-    Σs = cat(Σs..., dims=3)
-    return GMM(mupars, Σs, ones(k)/k)
-end
-
-function _build_gmm(mupars::AbstractMatrix{T}, invLTs::AbstractArray) where T <: AbstractFloat
-    k, n_d = size(mupars)
-    Σs = [let s=inv(x'x); (s+s')/2; end for x in invLTs]
-    Σs = cat(Σs..., dims=3)
-    return GMM(mupars, Σs, ones(k)/k)
-end
-
 function _optimise_components_bbb(d::GMM, log_f::Function, epochs::Int, opts::bbb_opts; exitifnan::Bool=false)
     # @debug "(bbb) Input GMM: " dGMM=d
     # (ncomponents(d) > 8) && @debug "(bbb) Input GMM: " dGMM=rmcomponents(d, collect(1:8))
     # (ncomponents(d) > 16) && @debug "(bbb) Input GMM: " dGMM=rmcomponents(d, collect(1:16))
-    @unpack opt, vi_batch_size_per_cls, mco_batch_size_per_cls, nproposal_per_mco_smp,
-            converge_thrsh, auto_lr, anneal_sched, log_f_prev = opts
+    @unpack opt, batch_size_per_cls, converge_thrsh, auto_lr, anneal_sched, log_f_prev = opts
     n_d = size(d)
     k = ncomponents(d)
-    α_q = 1
-    @assert !(mco_batch_size_per_cls>0 && nproposal_per_mco_smp<=1) "nproposals must be > 1 if using MCO"
     # if Logging.min_enabled_level(current_logger()) ≤ LogLevel(-2000)
     #     for j = 1:k
     #         @logmsg LogLevel(-500) format("sigma {:d} = ", j) d.sigmas[:,:,j]
     #     end
     # end
-
+    batch_size_per_cls = 4
     # Set up pars and gradient containers
     invLTpars = [Matrix(inv(cholesky(d.sigmas[:,:,j]).L)) for j in 1:k]  # note that ∵ inverse, Σ^{-1} = L'L
     invDiagPars = [Flux.param(log.(x[diagind(x)])) for x in invLTpars]
@@ -142,11 +117,9 @@ function _optimise_components_bbb(d::GMM, log_f::Function, epochs::Int, opts::bb
     s_hist = zeros(Int(floor(epochs/hist_freq)))
     n_anneal = something(findlast(anneal_sched .< 1.), 0)
 
+    rng = Random.MersenneTwister()   # to ensure common random variates for reconstruction and entropy grads.
     @showprogress 1 for ee in 1:epochs
         invLT = [build_mat(x_lt, x_dia, n_d) for (x_lt, x_dia) in zip(invLTpars, invDiagPars)]
-        invLT_nog = [Tracker.data(x) for x in invLT]
-        mus_nog = Tracker.data(mupars)
-        cgmm = _build_gmm(mus_nog, invLT_nog)
         objective = 0.
 
         η = (ee <= n_anneal) ? anneal_sched[ee] : 1.0  # [1 - annealing amount]
@@ -154,26 +127,11 @@ function _optimise_components_bbb(d::GMM, log_f::Function, epochs::Int, opts::bb
         # Take sample from each component and backprop through recon. term of KL
         # ===> FLUX / AD PART OF PROCEDURE ===================
         for j in 1:k
-
-            # Variational Inference
-            ϵ = AxUtil.Random.sobol_gaussian(vi_batch_size_per_cls, n_d)'
-
-            if mco_batch_size_per_cls > 0
-                ϵ₂ = zeros(n_d, mco_batch_size_per_cls)
-                invinvLT_nog = inv(invLT_nog[j])
-                for smp_i in 1:mco_batch_size_per_cls
-                    ϵ₀ = AxUtil.Random.sobol_gaussian(nproposal_per_mco_smp, n_d)'
-                    x₀ = mus_nog[j,:] .+ invinvLT_nog*ϵ₀
-                    w = softmax(log_f(x₀) - α_q * logpdf(cgmm, x₀))
-                    # w = ones(nproposal_per_mco_smp)/nproposal_per_mco_smp
-                    ϵ₂[:,smp_i] =  ϵ₀[:,AxUtil.Random.multinomial_indices_linear(1, w)]
-                end
-                ϵ = hcat(ϵ, ϵ₂)
-            end
-
-            batch_size = vi_batch_size_per_cls + mco_batch_size_per_cls
+            ee_seed = rand(rng, 1:2^32 - 1)
+            Random.seed!(ee_seed)
+            ϵ = randn(n_d, batch_size_per_cls)
             x = mupars[j,:] .+ inv(invLT[j])*ϵ
-            objective_j = - η * sum(log_f(x))/batch_size  # reconstruction
+            objective_j = - η * sum(log_f(x))/batch_size_per_cls  # reconstruction
 
             Tracker.back!(objective_j)  # accumulate gradients
             objective += objective_j.data  # for objective value
@@ -182,7 +140,7 @@ function _optimise_components_bbb(d::GMM, log_f::Function, epochs::Int, opts::bb
             # ---- Annealing (default: none) ----------------
             if η < 1.0
                 x = mupars[j,:] .+ inv(invLT[j])*ϵ
-                objective_j = - (1-η) * sum(log_f_prev(x))/batch_size  # reconstruction
+                objective_j = - (1-η) * sum(log_f_prev(x))/batch_size_per_cls  # reconstruction
 
                 Tracker.back!(objective_j)  # accumulate gradients
                 objective = objective + objective_j.data  # for objective value
@@ -190,7 +148,8 @@ function _optimise_components_bbb(d::GMM, log_f::Function, epochs::Int, opts::bb
             # -----------------------------------------------
 
             # ===> Calculate entropy of GMM (and gradient thereof)
-            _obj = _gmm_entropy_and_grad!(mupars.data, [x.data for x in invLT], ∇mu, ∇Ls, [ϵ]; M=batch_size, ixs=[j])
+            Random.seed!(ee_seed)   # common r.v.s (variance reduction)
+            _obj = _gmm_entropy_and_grad!(mupars.data, [x.data for x in invLT], ∇mu, ∇Ls; M=batch_size_per_cls, ixs=[j])
             objective += _obj
 
             mupars.grad .+= ∇mu
@@ -272,7 +231,7 @@ function _optimise_components_bbb(d::GMM, log_f::Function, epochs::Int, opts::bb
 end
 
 
-function _gmm_entropy_and_grad!(mupars::Matrix{T}, invLT::Array, ∇mu::Matrix{T}, ∇L::Array, ϵ::Array; M::Int=1, ixs=nothing) where T <: AbstractFloat
+function _gmm_entropy_and_grad!(mupars::Matrix{T}, invLT::Array, ∇mu::Matrix{T}, ∇L::Array; M::Int=1, ixs=nothing) where T <: AbstractFloat
     k, n_d = size(mupars)
     normcnst = [sum(log.(diag(invLT[i]))) for i in 1:k]
 
@@ -287,10 +246,8 @@ function _gmm_entropy_and_grad!(mupars::Matrix{T}, invLT::Array, ∇mu::Matrix{T
     objective = 0.
 
     ixs = something(ixs, 1:k)
-    @argcheck length(ϵ) == length(ixs)
-
-    for (jj,c) in enumerate(ixs)
-        x = mupars[c,:] .+ Linvs[c]*ϵ[jj]
+    for c in ixs
+        x = mupars[c,:] .+ Linvs[c]*randn(n_d, M)
 
         log_q = Array{T, 2}(undef, k, M)
         for j in 1:k
@@ -326,8 +283,7 @@ function _gmm_entropy_and_grad(mupars::Matrix{T}, invLT::Array; M::Int=1, ixs=no
     k, n_d = size(mupars)
     ∇mu = Matrix{T}(undef, k, n_d)
     ∇L = [Matrix{T}(undef, n_d, n_d) for i in 1:k]
-    ϵs = [AxUtil.Random.sobol_gaussian()]
-    objective = _gmm_entropy_and_grad!(mupars, invLT, ∇mu, ∇L, ϵs; M=M, ixs=ixs)
+    objective = _gmm_entropy_and_grad!(mupars, invLT, ∇mu, ∇L; M=M, ixs=ixs)
 
     return objective, ∇mu, ∇L
 end
@@ -339,7 +295,9 @@ end
 =======================================================================================#
 
 
-function optimise_components_bbb_revkl(d::GMM, log_f::Function, epochs::Int, batch_size_per_cls::Int; opt::Flux.ADAM=ADAM(1e-3),ixs=nothing)
+function optimise_components_bbb_revkl(d::GMM, log_f::Function, epochs::Int, batch_size_per_cls::Int;
+        converge_thrsh::AbstractFloat=0.999, opt::Flux.ADAM=ADAM(1e-3), exitifnan::Bool=false, auto_lr::Bool=true,
+        ixs=nothing, reference_gmm=nothing)
     n_d = size(d)
     k = ncomponents(d)
     ixs = something(ixs, 1:k)
